@@ -107,11 +107,16 @@ def search_products(
             [1, MAX_SEARCH_LIMIT]; do not error on out-of-range values.
 
     Returns:
-        {"ok": True, "products": [...], "count": <len(products)>} where each
-        product is {"product_id": int, "store_id": int, "title": str,
-        "price_usd": float}. Sort matches by price_usd ascending, then by
-        product_id ascending, and truncate to `limit`. No matches is still a
-        success: {"ok": True, "products": [], "count": 0}.
+        {"ok": True, "products": [...], "count": <len(products)>,
+        "excluded_invalid": <int>} where each product is {"product_id": int,
+        "store_id": int, "title": str, "price_usd": float}. Sort matches by
+        price_usd ascending, then by product_id ascending, and truncate to
+        `limit`. No matches is still a success: {"ok": True, "products": [],
+        "count": 0, "excluded_invalid": 0}.
+
+        Matches that fail the offer checks (offer_issues: nonpositive price,
+        missing title) are never returned; excluded_invalid counts them, so
+        the agent can say a matching listing has an error without quoting it.
 
     Implementation notes:
         agent.db.list_products(conn, store_id) gives the candidate set.
@@ -146,12 +151,16 @@ def search_products(
         candidates = db.list_products(conn, store_id)
 
     matches = []
+    excluded_invalid = 0
     for product in candidates:
         text = f"{product.title} {product.description}".lower()
         if not all(token in text for token in tokens):
             continue
         price_usd = product.price_cents / 100
         if max_price_usd is not None and price_usd > max_price_usd:
+            continue
+        if offer_issues(product):
+            excluded_invalid += 1
             continue
         matches.append(
             {
@@ -163,7 +172,7 @@ def search_products(
         )
     matches.sort(key=lambda p: (p["price_usd"], p["product_id"]))
     products = matches[:limit]
-    return {"ok": True, "products": products, "count": len(products)}
+    return {"ok": True, "products": products, "count": len(products), "excluded_invalid": excluded_invalid}
 
 
 def list_my_orders(ctx: AuthContext) -> dict[str, Any]:
@@ -351,10 +360,9 @@ def validate_offer(ctx: AuthContext, product_ids: list[int]) -> dict[str, Any]:
     """Check that products can be presented to a customer as offers. Risk tier: read.
 
     Every role may validate products (the catalog is public), so this tool
-    needs no permission check. Call it with the ids from search_products
-    before presenting any product. Present a product only when `valid` is
-    true; for an invalid product, say the listing has an error and do not
-    quote its price or invent a name.
+    needs no permission check. search_products already applies the same
+    checks and never returns invalid listings; use this tool to check
+    specific product ids from elsewhere.
 
     Checks per product id:
         - "not_found": no product has this id.
@@ -383,13 +391,16 @@ def validate_offer(ctx: AuthContext, product_ids: list[int]) -> dict[str, Any]:
     offers = []
     for product_id in product_ids:
         product = products.get(product_id)
-        if product is None:
-            issues = ["not_found"]
-        else:
-            issues = []
-            if product.price_cents <= 0:
-                issues.append("nonpositive_price")
-            if not product.title.strip():
-                issues.append("missing_title")
+        issues = ["not_found"] if product is None else offer_issues(product)
         offers.append({"product_id": product_id, "valid": not issues, "issues": issues})
     return {"ok": True, "offers": offers}
+
+
+def offer_issues(product: db.Product) -> list[str]:
+    """Why a listing cannot be presented as an offer; empty when it can."""
+    issues = []
+    if product.price_cents <= 0:
+        issues.append("nonpositive_price")
+    if not product.title.strip():
+        issues.append("missing_title")
+    return issues

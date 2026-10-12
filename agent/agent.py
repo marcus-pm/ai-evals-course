@@ -72,8 +72,6 @@ or credential changes, and anything outside Cartwheel.
   the reply, for example (cw-account-security).
 - Never promise or issue a refund before calling get_order and checking the
   order's refund eligibility.
-- Call validate_offer on products from search_products before presenting
-  them, and present only products it marks valid.
 
 ## Escalation
 For account changes (for example email), get_policy cw-account-security, tell
@@ -438,8 +436,8 @@ def find_order(
 def validate_offer(
     wrapper: RunContextWrapper[AuthContext], product_ids: list[int]
 ) -> dict[str, Any]:
-    """Check products before presenting them as offers. Call with the ids from
-    search_products; present only products whose `valid` is true."""
+    """Check whether specific product ids can be presented as offers.
+    search_products already leaves out invalid listings."""
     return _call(wrapper, hw_tools.validate_offer, product_ids)
 
 

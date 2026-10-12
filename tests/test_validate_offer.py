@@ -47,3 +47,24 @@ def test_rejects_empty_and_oversized_lists(world: dict) -> None:
 def test_registered_for_every_role() -> None:
     for role, role_tools in TOOLS_BY_ROLE.items():
         assert "validate_offer" in [tool.name for tool in role_tools], role
+
+
+def test_search_products_excludes_invalid_listings(world: dict) -> None:
+    # Product 4 (Rustic Pitcher, -$5.00) is the only Blue Heron pitcher under $20.
+    result = tools.search_products(SHOPPER_1, "pitcher", store="Blue Heron Ceramics", max_price_usd=20)
+    assert result == {"ok": True, "products": [], "count": 0, "excluded_invalid": 1}
+
+
+def test_search_products_reports_zero_when_all_valid(world: dict) -> None:
+    result = tools.search_products(SHOPPER_1, "pitcher", store="Blue Heron Ceramics")
+    assert result["excluded_invalid"] == 1
+    assert all(p["price_usd"] > 0 and p["title"].strip() for p in result["products"])
+    assert 4 not in [p["product_id"] for p in result["products"]]
+    clean = tools.search_products(SHOPPER_1, "Matte Pitcher", store="Blue Heron Ceramics")
+    assert clean["excluded_invalid"] == 0 and clean["count"] >= 1
+
+
+def test_prompt_no_longer_mentions_validate_offer() -> None:
+    from agent.agent import SYSTEM_PROMPT_TEMPLATE
+
+    assert "validate_offer" not in SYSTEM_PROMPT_TEMPLATE
