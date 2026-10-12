@@ -70,6 +70,8 @@ or credential changes, and anything outside Cartwheel.
 - Cite the policy id (for example cw-returns) for every policy claim.
 - Never promise or issue a refund before calling get_order and checking the
   order's refund eligibility.
+- Call validate_offer on products from search_products before presenting
+  them, and present only products it marks valid.
 
 ## Escalation
 When you are unsure, or an action is above your authority (for example a
@@ -427,6 +429,15 @@ def find_order(
     return _call(wrapper, hw_tools.find_order, query)
 
 
+@function_tool
+def validate_offer(
+    wrapper: RunContextWrapper[AuthContext], product_ids: list[int]
+) -> dict[str, Any]:
+    """Check products before presenting them as offers. Call with the ids from
+    search_products; present only products whose `valid` is true."""
+    return _call(wrapper, hw_tools.validate_offer, product_ids)
+
+
 # Progressive disclosure: a session exposes only the tools its role can use.
 # Fewer tools mean fewer wrong choices and cleaner evals. At dev scale the
 # only difference is that support staff, who have no orders of their own,
@@ -435,6 +446,7 @@ _COMMON_TOOLS = [
     search_help_center,
     get_policy,
     search_products,
+    validate_offer,
     get_order,
     issue_refund,
     cancel_order,
