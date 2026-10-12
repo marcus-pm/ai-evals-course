@@ -10,4 +10,4 @@ facts_used:
 
 # When a case goes to a human
 
-Some cases always go to a human support agent: refunds above 100 dollars, account changes, disputes, and anything the assistant cannot resolve from policy and the order record. A human responds to an escalation within 24 hours.
+Some cases always go to a human support agent: refunds above 100 dollars, account changes the user cannot make through account settings, disputes, and anything the assistant cannot resolve from policy and the order record. A human responds to an escalation within 24 hours.

@@ -165,9 +165,10 @@ def render_platform_policies(facts: dict[str, Any]) -> list[PolicyDoc]:
             },
             body=(
                 f"Some cases always go to a human support agent: refunds above "
-                f"{threshold} dollars, account changes, disputes, and anything "
-                f"the assistant cannot resolve from policy and the order record. "
-                f"A human responds to an escalation within {sla} hours."
+                f"{threshold} dollars, account changes the user cannot make "
+                f"through account settings, disputes, and anything the assistant "
+                f"cannot resolve from policy and the order record. A human "
+                f"responds to an escalation within {sla} hours."
             ),
         ),
         PolicyDoc(

@@ -55,10 +55,11 @@ outside the caller's role. Authorization is not a prompt.
 | View store's orders | no | own store only | any store |
 | Search products / policies | yes | yes | yes |
 | Issue refund | own orders, <= threshold | own store's orders, <= threshold | any, <= threshold |
-| Cancel order | own, pre-shipment | own store's | any |
+| Cancel order | own orders, within cutoff | own store's orders, within cutoff | any, within cutoff |
 | Above-threshold refund | queued for human | queued for human | queued for human |
 
 The threshold is `refund_auto_approve_threshold_usd` in `facts.yaml` ($100).
+The cancellation cutoff is `cancel_cutoff` in `facts.yaml` (policy `cw-cancellations`). It applies to every role.
 
 ## 4. Tools
 
@@ -75,6 +76,7 @@ Successful results contain `ok: true` and the result fields. Expected failures c
 | TOOL-7 | `issue_refund` | order identifier, amount, reason | creates a refund record; marks the order refunded only for an automatically approved refund | write |
 | TOOL-8 | `cancel_order` | order identifier, reason | marks an eligible order cancelled | write |
 | TOOL-9 | `escalate_to_human` | summary, context | creates a support ticket | write |
+| TOOL-10 | `validate_offer` | product identifiers | none | read |
 
 ### Success and failure contracts
 
@@ -89,13 +91,16 @@ Successful results contain `ok: true` and the result fields. Expected failures c
 | `issue_refund` | `refund_id`, `order_id`, `amount_usd`, and `status`. Status is `auto_approved` at or below the threshold and `queued_for_approval` above it. | `invalid_argument` for a nonpositive amount or an amount above the order total; `not_found` for an unknown order; `permission_denied` for an unauthorized caller; `not_eligible` for an ineligible order; `paused` when refunds are disabled. |
 | `cancel_order` | `order_id` and `status: cancelled` after updating an authorized order whose current status is `placed`. | `not_found` for an unknown order; `permission_denied` for an unauthorized caller; `not_eligible` when the order is no longer `placed`; `paused` when cancellations are disabled. |
 | `escalate_to_human` | `ticket_id` and `sla_hours` after creating the support ticket. | Execution exception if ticket creation fails. |
+| `validate_offer` | `offers`, one per requested identifier in request order, each with `product_id`, `valid`, and `issues` (`not_found`, `nonpositive_price`, `missing_title`). | `invalid_argument` for an empty list or more than 25 identifiers. |
 
 ## 5. Escalation policy
 
 The following cases always go to a human:
 
-- **ESC-1.** Refunds above the threshold; the tool queues the refund, and the agent explains the result.
-- **ESC-2.** Account changes of any kind.
+- **ESC-1.** Refunds above the threshold; the tool queues the refund, the agent calls
+  `escalate_to_human` with the order id and refund id in the summary, and the agent explains the result.
+- **ESC-2.** Account changes the user cannot make through account settings. The agent first
+  points the user to account settings and cites `cw-account-security`.
 - **ESC-3.** Disputes and requests the agent cannot resolve from the help center and the
   order record.
 - **ESC-4.** Any case where the agent is unsure whether policy allows an action.
