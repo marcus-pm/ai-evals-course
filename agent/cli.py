@@ -41,7 +41,7 @@ from agents import RunConfig, Runner, SQLiteSession
 from agents.items import RunItem
 from opentelemetry import trace
 
-from agent import db
+from agent import citations, db
 from agent.agent import build_agent, prompt_version
 from agent.auth import AuthContext
 from agent.config import REPO_ROOT
@@ -176,7 +176,20 @@ async def chat(
 
         if debug:
             _print_tool_calls(result.new_items)
-        print(f"\nagent> {result.final_output}\n")
+
+        async def rewrite(request: str) -> str:
+            retry = await Runner.run(
+                agent, request, session=session, context=ctx,
+                max_turns=MAX_TURNS, run_config=run_config,
+            )
+            return str(retry.final_output)
+
+        reply, outcome = await citations.enforce_citation(
+            str(result.final_output), citations.policy_ids_used(result.new_items), rewrite
+        )
+        if debug and outcome in {"rewritten", "appended"}:
+            print(f"  [guard] citation {outcome}")
+        print(f"\nagent> {reply}\n")
 
 
 def main() -> None:
